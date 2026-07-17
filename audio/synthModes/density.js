@@ -6,19 +6,12 @@
   const NOTE_PEAK_GAIN = 0.28;
   const STABLE_FRAMES_REQUIRED = 2;
   const MIN_RETRIGGER_MS = 90;
-  const SCALE_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
-  const BASE_MIDI = 45;
-
-  const noteFrequencies = [];
-  for (let i = 0; i < NUM_CELLS; i++) {
-    const octave = Math.floor(i / SCALE_INTERVALS.length);
-    const degree = i % SCALE_INTERVALS.length;
-    const midi = BASE_MIDI + octave * 12 + SCALE_INTERVALS[degree];
-    noteFrequencies.push(440 * Math.pow(2, (midi - 69) / 12));
-  }
+  const FREQ_MAX_HZ = 880;
+  const FREQ_MIN_HZ = 110;
 
   function countToFrequency(count) {
-    return noteFrequencies[NUM_CELLS - count];
+    const t = (count - 1) / (NUM_CELLS - 1);
+    return FREQ_MAX_HZ * Math.pow(FREQ_MIN_HZ / FREQ_MAX_HZ, t);
   }
 
   let currentCount = 0;

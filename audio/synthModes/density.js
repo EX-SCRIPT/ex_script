@@ -6,12 +6,11 @@
   const NOTE_PEAK_GAIN = 0.28;
   const STABLE_FRAMES_REQUIRED = 2;
   const MIN_RETRIGGER_MS = 90;
-  const FREQ_MAX_HZ = 880;
-  const FREQ_MIN_HZ = 110;
+  const FUNDAMENTAL_HZ = 110;
+  const HYSTERESIS_MIN_DELTA = 2;
 
   function countToFrequency(count) {
-    const t = (count - 1) / (NUM_CELLS - 1);
-    return FREQ_MAX_HZ * Math.pow(FREQ_MIN_HZ / FREQ_MAX_HZ, t);
+    return FUNDAMENTAL_HZ * (NUM_CELLS + 1 - count);
   }
 
   let currentCount = 0;
@@ -56,6 +55,13 @@
     }
 
     if (count === currentCount) {
+      candidateCount = count;
+      candidateFrames = 0;
+      return;
+    }
+
+    const crossesSilence = count === 0 || currentCount === 0;
+    if (!crossesSilence && Math.abs(count - currentCount) < HYSTERESIS_MIN_DELTA) {
       candidateCount = count;
       candidateFrames = 0;
       return;

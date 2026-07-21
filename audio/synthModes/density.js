@@ -13,15 +13,56 @@
     return FUNDAMENTAL_HZ * (NUM_CELLS + 1 - count);
   }
 
+  function gcd(a, b) {
+    while (b !== 0) {
+      const t = b;
+      b = a % b;
+      a = t;
+    }
+    return a;
+  }
+
+  function dissonance(a, b) {
+    const g = gcd(a, b);
+    return a / g + b / g;
+  }
+
+  function chooseStep(fromCount, toCount) {
+    const dir = toCount > fromCount ? 1 : -1;
+    if (Math.abs(toCount - fromCount) <= MAX_HARMONIC_STEP) return toCount;
+    const fromHarmonic = NUM_CELLS + 1 - fromCount;
+    let best = fromCount + dir;
+    let bestScore = Infinity;
+    for (let s = 1; s <= MAX_HARMONIC_STEP; s++) {
+      const candidate = fromCount + dir * s;
+      const candidateHarmonic = NUM_CELLS + 1 - candidate;
+      const score = dissonance(fromHarmonic, candidateHarmonic);
+      if (score <= bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
+    return best;
+  }
+
   let currentCount = 0;
   let targetCount = 0;
   let currentVoice = 0;
   let lastTriggerMs = -Infinity;
+  let countHistory = [];
 
   function resetState() {
     currentCount = 0;
     targetCount = 0;
     lastTriggerMs = -Infinity;
+    countHistory = [];
+  }
+
+  function smoothedCount(rawCount) {
+    countHistory.push(rawCount);
+    if (countHistory.length > 3) countHistory.shift();
+    const sorted = countHistory.slice().sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
   }
 
   function dampAll() {
@@ -61,10 +102,11 @@
   function update(sampledRow) {
     if (!sampledRow) return;
 
-    let count = 0;
+    let rawCount = 0;
     for (const pixel of sampledRow) {
-      if (pixel.confidence > ACTIVE_CONFIDENCE_THRESHOLD) count++;
+      if (pixel.confidence > ACTIVE_CONFIDENCE_THRESHOLD) rawCount++;
     }
+    const count = smoothedCount(rawCount);
 
     if (count !== targetCount) {
       const crossesSilence = count === 0 || targetCount === 0;
@@ -83,9 +125,7 @@
       return;
     }
 
-    const delta = targetCount - currentCount;
-    const step = Math.max(-MAX_HARMONIC_STEP, Math.min(MAX_HARMONIC_STEP, delta));
-    strike(currentCount + step, audioNow);
+    strike(chooseStep(currentCount, targetCount), audioNow);
   }
 
   window.SynthModes = window.SynthModes || {};

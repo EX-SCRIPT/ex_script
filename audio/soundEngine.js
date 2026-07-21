@@ -465,7 +465,7 @@
     ensureReady();
     const voice = pianoVoices[index];
     const brightness = Math.min(1, 300 / freqHz);
-    const baseDecay = 0.9 * Math.pow(220 / freqHz, 0.5);
+    const baseDecay = 1.3 * Math.pow(220 / freqHz, 0.5);
 
     for (let k = 0; k < voice.partials.length; k++) {
       const n = k + 1;
@@ -476,22 +476,22 @@
       freqParam.cancelScheduledValues(when);
       freqParam.setValueAtTime(partialFreq, when);
 
-      const amp = peakGain * Math.pow(1 / n, 1.4) * (k === 0 ? 1 : brightness);
+      const amp = peakGain * Math.pow(1 / n, 2.0) * (k === 0 ? 1 : brightness * 0.8);
       const decay = baseDecay / (1 + 0.8 * k);
 
       const gainParam = partial.gain.gain;
       gainParam.cancelScheduledValues(when);
-      gainParam.setTargetAtTime(amp, when, 0.003);
+      gainParam.setTargetAtTime(amp, when, 0.006);
       gainParam.setTargetAtTime(0, when + 0.012, decay);
     }
 
     const hammerFreqParam = voice.hammerFilter.frequency;
     hammerFreqParam.cancelScheduledValues(when);
-    hammerFreqParam.setValueAtTime(Math.min(6000, freqHz * 7), when);
+    hammerFreqParam.setValueAtTime(Math.min(3200, freqHz * 4), when);
 
     const hammerParam = voice.hammerGain.gain;
     hammerParam.cancelScheduledValues(when);
-    hammerParam.setTargetAtTime(peakGain * 0.18, when, 0.002);
+    hammerParam.setTargetAtTime(peakGain * 0.07, when, 0.003);
     hammerParam.setTargetAtTime(0, when + 0.008, 0.02);
   }
 

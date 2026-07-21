@@ -4,25 +4,23 @@
   const NUM_CELLS = 18;
   const ACTIVE_CONFIDENCE_THRESHOLD = 0.25;
   const NOTE_PEAK_GAIN = 0.28;
-  const STABLE_FRAMES_REQUIRED = 2;
   const MIN_RETRIGGER_MS = 90;
   const FUNDAMENTAL_HZ = 110;
   const HYSTERESIS_MIN_DELTA = 2;
+  const MAX_HARMONIC_STEP = 5;
 
   function countToFrequency(count) {
     return FUNDAMENTAL_HZ * (NUM_CELLS + 1 - count);
   }
 
   let currentCount = 0;
-  let candidateCount = 0;
-  let candidateFrames = 0;
+  let targetCount = 0;
   let currentVoice = 0;
   let lastTriggerMs = -Infinity;
 
   function resetState() {
     currentCount = 0;
-    candidateCount = 0;
-    candidateFrames = 0;
+    targetCount = 0;
     lastTriggerMs = -Infinity;
   }
 
@@ -46,6 +44,20 @@
     resetState();
   }
 
+  function strike(count, audioNow) {
+    window.SoundEngine.dampPianoVoiceAt(currentVoice, audioNow);
+    currentCount = count;
+    lastTriggerMs = performance.now();
+    if (count === 0) return;
+    currentVoice = (currentVoice + 1) % window.SoundEngine.NUM_PIANO_VOICES;
+    window.SoundEngine.triggerPianoNoteAt(
+      currentVoice,
+      audioNow + 0.02,
+      countToFrequency(count),
+      NOTE_PEAK_GAIN
+    );
+  }
+
   function update(sampledRow) {
     if (!sampledRow) return;
 
@@ -54,47 +66,26 @@
       if (pixel.confidence > ACTIVE_CONFIDENCE_THRESHOLD) count++;
     }
 
-    if (count === currentCount) {
-      candidateCount = count;
-      candidateFrames = 0;
-      return;
+    if (count !== targetCount) {
+      const crossesSilence = count === 0 || targetCount === 0;
+      if (crossesSilence || Math.abs(count - targetCount) >= HYSTERESIS_MIN_DELTA) {
+        targetCount = count;
+      }
     }
 
-    const crossesSilence = count === 0 || currentCount === 0;
-    if (!crossesSilence && Math.abs(count - currentCount) < HYSTERESIS_MIN_DELTA) {
-      candidateCount = count;
-      candidateFrames = 0;
-      return;
-    }
-
-    if (count === candidateCount) {
-      candidateFrames++;
-    } else {
-      candidateCount = count;
-      candidateFrames = 1;
-    }
-
-    if (candidateFrames < STABLE_FRAMES_REQUIRED) return;
-
-    const nowMs = performance.now();
-    if (nowMs - lastTriggerMs < MIN_RETRIGGER_MS) return;
+    if (targetCount === currentCount) return;
+    if (performance.now() - lastTriggerMs < MIN_RETRIGGER_MS) return;
 
     const audioNow = window.SoundEngine.getAudioContext().currentTime;
-    window.SoundEngine.dampPianoVoiceAt(currentVoice, audioNow);
 
-    currentCount = candidateCount;
-    candidateFrames = 0;
-    lastTriggerMs = nowMs;
+    if (targetCount === 0 || currentCount === 0) {
+      strike(targetCount, audioNow);
+      return;
+    }
 
-    if (currentCount === 0) return;
-
-    currentVoice = (currentVoice + 1) % window.SoundEngine.NUM_PIANO_VOICES;
-    window.SoundEngine.triggerPianoNoteAt(
-      currentVoice,
-      audioNow + 0.02,
-      countToFrequency(currentCount),
-      NOTE_PEAK_GAIN
-    );
+    const delta = targetCount - currentCount;
+    const step = Math.max(-MAX_HARMONIC_STEP, Math.min(MAX_HARMONIC_STEP, delta));
+    strike(currentCount + step, audioNow);
   }
 
   window.SynthModes = window.SynthModes || {};
